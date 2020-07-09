@@ -6,6 +6,8 @@
 // @grant    		none
 // ==/UserScript==
 
+// TURN OFF AUTOPLAY OR THIS WON'T WORK: https://twitter.com/settings/autoplay
+
 console.log('fuck');
 
 const tweetIdRegex = /status\/(\d*)(\/likes)?$/;
@@ -90,7 +92,6 @@ async function getTweetInfo(tweetId) {
 }
 
 const tweetVideoInfoCache = new Map();
-window.tweetVideoInfoCache = tweetVideoInfoCache;
 
 function getTweetVideoInfo(tweetId) {
   if (!tweetVideoInfoCache.has(tweetId)) {    
