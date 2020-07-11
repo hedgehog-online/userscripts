@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name     		Twitter Web App Video Player Unfuckifier
-// @description	Holy shit is this website bad 
-// @include     https://twitter.com/*
+// @description		Holy shit is this website bad 
+// @include     	https://twitter.com/*
 // @version  		1
 // @grant    		none
 // ==/UserScript==
