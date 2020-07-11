@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name     		Twitter Web App Video Player Unfuckifier
-// @description		Holy shit is this website bad 
-// @include     	https://twitter.com/*
+// @description	Holy shit is this website bad 
+// @include     https://twitter.com/*
 // @version  		1
 // @grant    		none
 // ==/UserScript==
@@ -44,6 +44,7 @@ async function fixVideoEmbed(embed) {            //  \bad/
     const clone2 = clone.cloneNode();
     const video = videoTemplate.cloneNode();
     video.src = videoUrl;
+  	video.loop = clone2.getAttribute("aria-label").includes("GIF");
     clone2.appendChild(video);
 
     // give the video a few moments to get set up
@@ -53,7 +54,7 @@ async function fixVideoEmbed(embed) {            //  \bad/
 }
 
 const observer = new MutationObserver(async function(mutationsList) {
-  for (const embed of document.querySelectorAll(`main section article div[aria-label="Play this video"][data-testid="previewInterstitial"]:not(.fixed)`)) {  
+  for (const embed of document.querySelectorAll(`main section article div[aria-label*="Play this"][data-testid="previewInterstitial"]:not(.fixed)`)) {  
     fixVideoEmbed(embed);
   }
 });
@@ -78,6 +79,7 @@ const setup = {
 };
 
 async function getTweetInfo(tweetId) {
+	console.log("getting", tweetId);
   return fetch(`https://api.twitter.com/2/timeline/conversation/${tweetId}.json?` +
                `include_profile_interstitial_type=1&include_blocking=1&` +
                `include_blocked_by=1&include_followed_by=1&include_want_retweets=1&` +
@@ -93,19 +95,24 @@ async function getTweetInfo(tweetId) {
 
 const tweetVideoInfoCache = new Map();
 
-function getTweetVideoInfo(tweetId) {
+function getTweetVideoInfo(tweetId, info) {
   if (!tweetVideoInfoCache.has(tweetId)) {    
-    tweetVideoInfoCache.setAndPushOut(tweetId, requestInfo(tweetId));
+    tweetVideoInfoCache.setAndPushOut(tweetId, requestInfo(tweetId, info));
   }
   return tweetVideoInfoCache.get(tweetId);
 }
 
-async function requestInfo(tweetId) {
-	console.log("getting", tweetId);
-  const info = await getTweetInfo(tweetId);
-  
+async function requestInfo(tweetId, info) {
+  info = info || await getTweetInfo(tweetId);
+
   let variants = null;
   let thumbnail = null;
+  
+  // get media in qrts too
+  let quotedTweetId = info.globalObjects.tweets[tweetId].quoted_status_id_str;
+  if (quotedTweetId) {
+  	return await getTweetVideoInfo(quotedTweetId, info);
+  }
   
   for (const media of info.globalObjects.tweets[tweetId].extended_entities.media) {
     if (media.type = "video") {
@@ -120,10 +127,11 @@ async function requestInfo(tweetId) {
   let chosen = null;
   
   for (const variant of variants) {
-  	if (variant.bitrate > (chosen?.bitrate || 0)) {
+  	if (variant.bitrate >= (chosen?.bitrate || 0)) {
       chosen = variant;
     }
   }
+                            
  	return [thumbnail, chosen.url];
 }
 
