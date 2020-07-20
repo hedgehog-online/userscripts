@@ -25,7 +25,7 @@ async function fixVideoEmbed(embed) {            //  \bad/
   
   console.log("fixing", tweetId);
   
-  const videoInfo = getTweetVideoInfo(tweetId);
+  const videoInfo = getTweetVideoInfo(tweetId, embed.closest(`[role="blockquote"]`) != null);
 
   const parent = embed.parentElement;
   const clone = embed.cloneNode(true);
@@ -94,59 +94,60 @@ async function getTweetInfo(tweetId) {
 }
 
 const tweetVideoInfoCache = new Map();
+const tweetQuoteMapping = new Map();
 
-function getTweetVideoInfo(tweetId, info) {
-  if (!tweetVideoInfoCache.has(tweetId)) {    
-    tweetVideoInfoCache.setAndPushOut(tweetId, requestInfo(tweetId, info));
+async function getTweetVideoInfo(tweetId, getQuoteMedia) {
+  if (!tweetVideoInfoCache.has(tweetId)) {
+      await requestInfo(tweetId);
   }
-  return tweetVideoInfoCache.get(tweetId);
+  if (getQuoteMedia) {
+    return await tweetVideoInfoCache.get(tweetQuoteMapping.get(tweetId));
+  } else {
+    return await tweetVideoInfoCache.get(tweetId);
+  }
 }
 
 async function requestInfo(tweetId, info) {
-  info = info || await getTweetInfo(tweetId);
+  const result = async function() {
+    info = info || await getTweetInfo(tweetId);
+    // get media in qrts too
+    let quotedTweetId = info.globalObjects.tweets[tweetId].quoted_status_id_str;
+    if (quotedTweetId) {
+      tweetQuoteMapping.set(tweetId, quotedTweetId);
+      console.log(tweetId, "quotes", quotedTweetId);
+      requestInfo(quotedTweetId, info);
+    }
 
-  let variants = null;
-  let thumbnail = null;
-  
-  // get media in qrts too
-  let quotedTweetId = info.globalObjects.tweets[tweetId].quoted_status_id_str;
-  if (quotedTweetId) {
-  	return await getTweetVideoInfo(quotedTweetId, info);
-  }
-  
-  for (const media of info.globalObjects.tweets[tweetId].extended_entities.media) {
-    if (media.type = "video") {
-      variants = media.video_info.variants;
-      thumbnail = media.media_url_https;
-      break;
+    let variants = null;
+    let thumbnail = null;
+
+    if (info?.globalObjects?.tweets?.[tweetId]?.extended_entities) {
+      for (const media of info.globalObjects.tweets[tweetId].extended_entities.media) {
+        if (media.type = "video") {
+          variants = media.video_info.variants;
+          thumbnail = media.media_url_https;
+          break;
+        }
+      }
     }
-  }
-  
-  if (!variants) { return null; }
-  
-  let chosen = null;
-  
-  for (const variant of variants) {
-  	if (variant.bitrate >= (chosen?.bitrate || 0)) {
-      chosen = variant;
+
+    if (variants) {
+      let chosen = null;
+      for (const variant of variants) {
+        if (variant.bitrate >= (chosen?.bitrate || 0)) {
+          chosen = variant;
+        }
+      }                          
+      return [thumbnail, chosen.url];
+    } else {
+      return null;
     }
-  }
-                            
- 	return [thumbnail, chosen.url];
+  }();
+  tweetVideoInfoCache.set(tweetId, result);
+  await result;
 }
 
 observer.observe(document.body, { // lmao
   childList: true,
   subtree: true
 });
-        
-Map.prototype.setAndPushOut = function(k, v, max) {
-  this.set(k, v);
-  for (const k in this.keys()) {
-    if (this.size > max) {
-      this.delete(k);
-    } else {
-      break;
-    }
-  }
-}
